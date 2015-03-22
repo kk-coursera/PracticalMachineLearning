@@ -1,0 +1,132 @@
+---
+title: "Practical Machine Learning Project"
+author: "Ang Kian Keong"
+date: "Monday, March 23, 2015"
+output: html_document
+---
+
+<br>
+
+### 1. Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+<br>
+
+### 2. Data
+
+The training data for this project are available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+
+```{r}
+library(caret)
+```
+
+<br>
+The following codes load the data into training and test sets. 
+
+```{r}
+train <- read.csv("pml-training.csv", header = TRUE)
+test  <- read.csv('pml-testing.csv')
+```
+
+<br>
+The following codes split the data (80% for training, 20% for testing):
+
+```{r}
+set.seed(10000)
+trainset <- createDataPartition(train$classe, p = 0.8, list = FALSE)
+Training <- train[trainset, ]
+Validation <- train[-trainset, ]
+```
+
+<br>
+The following codes clean up the data:<br>
+- near zero variance features<br>
+- columns with missing values<br>
+ -descriptive fields
+
+```{r}
+# exclude near zero variance features
+nzvcol <- nearZeroVar(Training)
+Training <- Training[, -nzvcol]
+
+# exclude columns with m40% ore more missing values exclude descriptive
+# columns like name etc
+cntlength <- sapply(Training, function(x) {
+    sum(!(is.na(x) | x == ""))
+})
+nullcol <- names(cntlength[cntlength < 0.6 * length(Training$classe)])
+descriptcol <- c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", 
+    "cvtd_timestamp", "new_window", "num_window")
+excludecols <- c(descriptcol, nullcol)
+Training <- Training[, !names(Training) %in% excludecols]
+```
+
+<br>
+
+### 3. Machine Learning Model
+
+<br>
+
+#### 3.1 Train the Model
+
+The randomForest package by Breiman's random forest algorithm (based on Breiman and Cutler's original Fortran code) is used to build the model.
+
+```{r}
+library(randomForest)
+rfModel <- randomForest(classe ~ ., data = Training, importance = TRUE, ntrees = 10)
+```
+
+<br>
+
+#### 3.2 Validate the Model
+
+The  model performance is tested on the training set itself.
+
+```{r}
+ptraining <- predict(rfModel, Training)
+print(confusionMatrix(ptraining, Training$classe))
+```
+
+<br>
+The  model performance is tested on the cross validation set.
+
+```{r}
+pvalidation <- predict(rfModel, Validation)
+print(confusionMatrix(pvalidation, Validation$classe))
+```
+
+The cross validation accuracy is 99.5% and thus the out-of-sample error is 0.5%.
+
+<br>
+
+### 4. Prediction
+
+The model is applied to the test set to predict 20 different test cases.
+
+```{r}
+ptest <- predict(rfModel, test)
+ptest
+```
+
+The output is saved to files according to instructions and posted to the submission page.
+
+```{r}
+answers <- as.vector(ptest)
+
+pml_write_files = function(x) {
+    n = length(x)
+    for (i in 1:n) {
+        filename = paste0("problem_id_", i, ".txt")
+        write.table(x[i], file = filename, quote = FALSE, row.names = FALSE, 
+            col.names = FALSE)
+    }
+}
+
+pml_write_files(answers)
+```
